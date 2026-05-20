@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>교사 업무 자동화 · CreanCool</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #1e3a5f 0%, #1d4ed8 50%, #2563eb 100%);
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2.5rem;
+      max-width: 520px;
+      width: 100%;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    }
+    h1 { margin: 0 0 0.5rem; font-size: 1.6rem; }
+    p { color: #475569; line-height: 1.6; margin: 0.75rem 0; }
+    ul { color: #334155; padding-left: 1.25rem; }
+    .btn {
+      display: inline-block;
+      margin-top: 1.25rem;
+      padding: 0.75rem 1.25rem;
+      background: #1d4ed8;
+      color: #fff !important;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .btn:hover { background: #1e40af; }
+    .muted { font-size: 0.85rem; color: #64748b; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📋 교사 업무 자동화</h1>
+    <p>쿨메신저 메시지를 AI로 분류하고 첨부파일을 정리하는 도구입니다.</p>
+    <ul>
+      <li>CSV · Excel 메시지 분석</li>
+      <li>카테고리별 분류 (평가·학급·교무·예산·일정 등)</li>
+      <li>첨부파일 자동 정리 (PC 실행)</li>
+    </ul>
+    <a class="btn" id="app-link" href="https://share.streamlit.io" target="_blank" rel="noopener">
+      Streamlit 앱 열기
+    </a>
+    <p class="muted">
+      배포 후 Streamlit Cloud URL을 이 페이지의 링크로 바꿔 주세요.<br />
+      <a href="https://github.com/">GitHub 저장소</a>
+    </p>
+  </div>
+  <script>
+    // 배포 URL을 알면 localStorage 또는 아래 한 줄 수정
+    // document.getElementById('app-link').href = 'https://YOUR_APP.streamlit.app';
+  </script>
+</body>
+</html>
