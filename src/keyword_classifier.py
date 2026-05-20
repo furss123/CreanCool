@@ -8,110 +8,122 @@ from dataclasses import dataclass
 import config
 from src.models import MessageRecord
 
-# (키워드, 가중치) — 긴 키워드·고유 용어일수록 높은 점수
 CATEGORY_PATTERNS: dict[str, list[tuple[str, int]]] = {
     "[평가·학력]": [
-        ("수행평가", 3),
-        ("지필평가", 3),
-        ("성적입력", 3),
-        ("성적 입력", 3),
-        ("나이스", 3),
-        ("neis", 3),
-        ("학생부", 3),
-        ("기재", 2),
-        ("채점", 2),
-        ("성적", 2),
-        ("평가", 2),
-        ("입력기한", 2),
-        ("교과", 1),
+        ("수행평가", 4),
+        ("지필평가", 4),
+        ("성적입력", 4),
+        ("성적 입력", 4),
+        ("성적확인", 3),
+        ("나이스", 4),
+        ("neis", 4),
+        ("학생부", 4),
+        ("봉사활동", 3),
+        ("세부능력", 3),
+        ("기재", 3),
+        ("채점", 3),
+        ("성적", 3),
+        ("평가계획", 3),
+        ("평가 계획", 3),
+        ("입력기한", 3),
+        ("입력 기한", 3),
+        ("교과", 2),
+        ("강의평가",  2),
     ],
     "[생활·학급]": [
-        ("학교폭력", 3),
-        ("위클래스", 3),
-        ("출결", 3),
-        ("조퇴", 3),
-        ("외출", 2),
-        ("지각", 2),
-        ("결석", 2),
-        ("담임", 2),
-        ("학급", 2),
-        ("상담", 2),
-        ("생활지도", 2),
-        ("체육대회", 2),
-        ("학부모", 1),
-        ("보호자", 1),
+        ("학교폭력", 4),
+        ("위클래스", 4),
+        ("weeclass", 4),
+        ("출결", 4),
+        ("조퇴", 4),
+        ("외출", 3),
+        ("지각", 3),
+        ("결석", 3),
+        ("담임", 3),
+        ("학급", 3),
+        ("상담", 3),
+        ("생활지도", 3),
+        ("생활 지도", 3),
+        ("체육대회", 3),
+        ("학부모", 2),
+        ("보호자", 2),
+        ("학생회", 2),
+        ("봉사", 2),
     ],
     "[교무·행정]": [
-        ("교무회의", 4),
-        ("전체교무", 3),
-        ("전체 교무", 3),
-        ("공문", 3),
-        ("회의", 2),
-        ("연수", 3),
-        ("시간표", 3),
-        ("초과근무", 3),
-        ("복무", 2),
-        ("교직원", 2),
-        ("인사", 2),
-        ("발령", 2),
-        ("교무", 2),
-        ("행정", 1),
-        ("공지", 1),
+        ("교무회의", 5),
+        ("전체교무", 4),
+        ("전체 교무", 4),
+        ("교무실", 3),
+        ("공문", 4),
+        ("공문시행", 3),
+        ("연수", 4),
+        ("직무연수", 4),
+        ("시간표", 4),
+        ("초과근무", 4),
+        ("복무", 3),
+        ("교직원", 3),
+        ("인사", 3),
+        ("발령", 3),
+        ("교무", 3),
+        ("행정", 2),
+        ("공지", 2),
+        ("제출", 2),
+        ("회람", 2),
+        ("기안", 2),
     ],
     "[예산·물품]": [
-        ("에듀파인", 3),
-        ("교단환경", 3),
-        ("예산", 3),
-        ("구매", 2),
-        ("비품", 2),
-        ("노트북", 2),
-        ("태블릿", 2),
-        ("기기대여", 2),
-        ("지출", 2),
-        ("결의", 2),
-        ("물품", 1),
+        ("에듀파인", 5),
+        ("교단환경", 4),
+        ("예산", 4),
+        ("구매", 3),
+        ("비품", 3),
+        ("노트북", 3),
+        ("태블릿", 3),
+        ("기기대여", 3),
+        ("대여", 2),
+        ("지출", 3),
+        ("결의", 3),
+        ("물품", 2),
+        ("지급", 2),
+        ("수리", 2),
     ],
     "[주요 일정]": [
-        ("학사일정", 5),
-        ("학사 일정", 5),
-        ("주요 일정", 4),
-        ("주요일정", 4),
-        ("행사일정", 3),
-        ("시험일정", 3),
-        ("개학", 3),
-        ("방학", 3),
-        ("학년도", 2),
-        ("일정안내", 3),
-        ("일정 안내", 3),
-        ("대회", 2),
-        ("행사", 2),
-        ("개최", 2),
+        ("학사일정", 6),
+        ("학사 일정", 6),
+        ("주요 일정", 5),
+        ("주요일정", 5),
+        ("행사일정", 4),
+        ("시험일정", 4),
+        ("개학", 4),
+        ("방학", 4),
+        ("개학식", 4),
+        ("졸업", 3),
+        ("수능", 3),
+        ("모의고사", 3),
+        ("일정안내", 4),
+        ("일정 안내", 4),
+        ("대회", 3),
+        ("행사", 3),
+        ("개최", 3),
         ("참가", 2),
-        ("기간:", 2),
-        ("일시:", 2),
-        ("월일", 2),
-        ("월 ", 1),
-        ("일 ", 1),
-        ("시 ", 1),
+        ("일시", 2),
+        ("장소", 2),
     ],
 }
 
-# 기타로 보내기 쉬운 비업무·친목 표현
-PERSONAL_HINTS = (
-    "점심",
-    "저녁",
+PERSONAL_ONLY = (
+    "점심 같이",
+    "저녁 같이",
     "커피",
     "친목",
-    "사교",
-    "고맙",
-    "감사합니다",
-    "수고",
-    "안녕하세요",
-    "생일",
-    "축하",
+    "사교일",
+    "생일 축하",
+    "고생하셨",
+    "수고하셨",
 )
 
-AUTO_LABEL_SCORE = 4
+AUTO_LABEL_SCORE = 3
 OVERRIDE_ETC_SCORE = 2
 
 
@@ -122,44 +134,56 @@ class KeywordPrediction:
     scores: dict[str, int]
 
 
-def _normalize_text(record: MessageRecord) -> str:
-    return f"{record.title} {record.content}".lower().replace("\n", " ")
+def _text_blob(record: MessageRecord) -> tuple[str, str]:
+    title = (record.title or "").lower()
+    body = (record.content or "").lower()
+    return title, body
 
 
-def score_categories(text: str) -> dict[str, int]:
+def score_categories(title: str, body: str) -> dict[str, int]:
     scores: dict[str, int] = {cat["label"]: 0 for cat in config.CATEGORIES}
+    full = f"{title} {body}"
     for label, patterns in CATEGORY_PATTERNS.items():
         for keyword, weight in patterns:
-            if keyword.lower() in text:
+            kw = keyword.lower()
+            if kw in title:
+                scores[label] = scores.get(label, 0) + weight + 1
+            elif kw in body:
                 scores[label] = scores.get(label, 0) + weight
-    # 날짜·시간 패턴이 있으면 주요 일정 가산
-    if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", text):
+            elif kw in full:
+                scores[label] = scores.get(label, 0) + max(1, weight - 1)
+
+    if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", full):
+        scores["[주요 일정]"] = scores.get("[주요 일정]", 0) + 3
+    if re.search(r"\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}", full):
         scores["[주요 일정]"] = scores.get("[주요 일정]", 0) + 2
-    if re.search(r"\d{1,2}:\d{2}", text):
-        scores["[주요 일정]"] = scores.get("[주요 일정]", 0) + 1
-    if re.search(r"\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}", text):
-        scores["[주요 일정]"] = scores.get("[주요 일정]", 0) + 2
+    if re.search(r"(제출|기한|마감|까지)", full):
+        for lbl in ("[평가·학력]", "[교무·행정]", "[예산·물품]"):
+            scores[lbl] = scores.get(lbl, 0) + 1
     return scores
 
 
 def predict(record: MessageRecord) -> KeywordPrediction:
-    text = _normalize_text(record)
-    scores = score_categories(text)
+    title, body = _text_blob(record)
+    scores = score_categories(title, body)
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     best_label, best_score = ranked[0]
+    second_score = ranked[1][1] if len(ranked) > 1 else 0
+
+    full = f"{title} {body}"
+    if any(p in full for p in PERSONAL_ONLY) and best_score < 4:
+        return KeywordPrediction("[기타]", 0, scores)
 
     if best_score == 0:
         return KeywordPrediction("[기타]", 0, scores)
 
-    # 1위와 2위 점수 차가 작으면 기타 대신 LLM에 맡김 (낮은 신뢰)
-    if len(ranked) > 1 and ranked[1][1] > 0:
-        if best_score - ranked[1][1] <= 1:
-            return KeywordPrediction("[기타]", 0, scores)
+    if best_score >= 3 and best_score - second_score >= 2:
+        return KeywordPrediction(best_label, best_score, scores)
 
-    if any(h in text for h in PERSONAL_HINTS) and best_score < 3:
-        return KeywordPrediction("[기타]", 0, scores)
+    if best_score >= OVERRIDE_ETC_SCORE and best_score - second_score >= 1:
+        return KeywordPrediction(best_label, best_score, scores)
 
-    return KeywordPrediction(best_label, best_score, scores)
+    return KeywordPrediction("[기타]", 0, scores)
 
 
 def should_auto_classify(pred: KeywordPrediction) -> bool:
@@ -171,12 +195,12 @@ def should_override_etc(pred: KeywordPrediction) -> bool:
 
 
 def heuristic_summary(record: MessageRecord) -> str:
-    """LLM 없이 키워드만으로 분류할 때 짧은 요약."""
     lines = [ln.strip() for ln in (record.content or "").splitlines() if ln.strip()]
+    for line in lines[:5]:
+        if any(k in line for k in ("기한", "까지", "제출", "입력", "참석", "일시", "장소")):
+            return f"{record.title} — {line[:100]}"
     body = lines[0][:120] if lines else ""
-    if body:
-        return f"{record.title} — {body}"
-    return record.title or "(내용 없음)"
+    return f"{record.title} — {body}" if body else (record.title or "(내용 없음)")
 
 
 def format_hint(pred: KeywordPrediction) -> str:
@@ -184,4 +208,4 @@ def format_hint(pred: KeywordPrediction) -> str:
         return ""
     top = sorted(pred.scores.items(), key=lambda x: x[1], reverse=True)[:3]
     parts = [f"{lbl}({sc})" for lbl, sc in top if sc > 0]
-    return f"키워드 분석: {', '.join(parts)} → **{pred.label}** 후보 (신뢰도 {pred.score})"
+    return f"키워드 분석: {', '.join(parts)} → {pred.label} (신뢰 {pred.score})"

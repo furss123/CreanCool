@@ -1,4 +1,4 @@
-"""로컬 사용자 설정 저장 (API 키·경로 기억하기)."""
+"""로컬 사용자 설정 저장."""
 
 from __future__ import annotations
 
@@ -26,15 +26,20 @@ def load_prefs() -> dict[str, Any]:
 def save_prefs(
     remember: bool,
     api_key: str = "",
-    model: str = "",
+    llm_provider: str = "",
+    llm_model: str = "",
     attach_dir: str = "",
 ) -> None:
     if remember:
         payload = {
             "remember": True,
-            "gemini_api_key": api_key,
-            "gemini_model": model,
+            "api_key": api_key,
+            "llm_provider": llm_provider,
+            "llm_model": llm_model,
             "attach_dir": attach_dir,
+            # 하위 호환
+            "gemini_api_key": api_key,
+            "gemini_model": llm_model,
         }
     else:
         payload = {"remember": False}
@@ -52,4 +57,8 @@ def get_field(key: str, fallback: str = "") -> str:
     if not prefs.get("remember"):
         return fallback
     val = prefs.get(key, fallback)
+    if not val and key == "api_key":
+        val = prefs.get("gemini_api_key", fallback)
+    if not val and key == "llm_model":
+        val = prefs.get("gemini_model", fallback)
     return str(val) if val is not None else fallback

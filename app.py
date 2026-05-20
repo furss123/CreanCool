@@ -25,7 +25,7 @@ from src import (
     settings_store,
     ui_styles,
 )
-from src.llm_service import GeminiClassifier
+from src.llm_router import MessageClassifier
 from src.models import ProcessedMessage
 
 st.set_page_config(
@@ -38,6 +38,7 @@ st.set_page_config(
 ui_styles.inject_global_css()
 CATEGORY_OPTIONS = config.CATEGORY_LABELS
 UPLOAD_TYPES = ["csv", "xls", "xlsx"]
+PROVIDER_LIST = list(config.LLM_PROVIDERS.keys())
 
 
 def _secret(key: str, default: str = "") -> str:
@@ -52,7 +53,9 @@ def _default_setting(key: str, secret_key: str, secret_default: str = "") -> str
     remembered = settings_store.get_field(key, "")
     if remembered:
         return remembered
-    return _secret(secret_key, secret_default)
+    return _secret(secret_key, secret_default) or _secret(
+        "gemini_api_key" if key == "api_key" else key, secret_default
+    )
 
 
 def _normalize_dir_path(raw: str) -> str:
@@ -62,7 +65,7 @@ def _normalize_dir_path(raw: str) -> str:
 def _attach_dir_candidates() -> list[str]:
     candidates: list[str] = []
     for value in (
-        st.session_state.get("sidebar_attach_dir", ""),
+        st.session_state.get("attach_dir", ""),
         settings_store.get_field("attach_dir", ""),
         _default_setting("attach_dir", "attach_dir"),
         str(_ROOT / "test_data" / "attachments"),
@@ -75,19 +78,17 @@ def _attach_dir_candidates() -> list[str]:
 
 
 def _ensure_attach_dir_default() -> None:
-    """입력란이 비었거나 잘못됐을 때 사용 가능한 경로로 자동 채움."""
-    current = _normalize_dir_path(st.session_state.get("sidebar_attach_dir", ""))
+    current = _normalize_dir_path(st.session_state.get("attach_dir", ""))
     if current and Path(current).is_dir():
-        st.session_state.sidebar_attach_dir = current
+        st.session_state.attach_dir = current
         return
     for path in _attach_dir_candidates():
         if Path(path).is_dir():
-            st.session_state.sidebar_attach_dir = path
+            st.session_state.attach_dir = path
             return
 
 
 def _resolve_attach_dir() -> tuple[Path | None, list[str]]:
-    """(유효 경로, 시도한 경로 목록)"""
     tried: list[str] = []
     for path in _attach_dir_candidates():
         if path in tried:
@@ -97,6 +98,11 @@ def _resolve_attach_dir() -> tuple[Path | None, list[str]]:
         if p.is_dir():
             return p, tried
     return None, tried
+
+
+def _on_provider_change() -> None:
+    provider = st.session_state.llm_provider
+    st.session_state.llm_model = config.LLM_PROVIDERS[provider]["default_model"]
 
 
 def _init_session() -> None:
@@ -109,23 +115,101 @@ def _init_session() -> None:
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
-    if "sidebar_api_key" not in st.session_state:
-        st.session_state.sidebar_api_key = _default_setting(
-            "gemini_api_key", "gemini_api_key"
+    if "api_key" not in st.session_state:
+        st.session_state.api_key = _default_setting("api_key", "api_key") or _default_setting(
+            "api_key", "gemini_api_key"
         )
-    if "sidebar_model" not in st.session_state:
-        st.session_state.sidebar_model = _default_setting(
-            "gemini_model", "gemini_model", config.DEFAULT_GEMINI_MODEL
+    if "llm_provider" not in st.session_state:
+        st.session_state.llm_provider = _default_setting(
+            "llm_provider", "llm_provider", config.DEFAULT_PROVIDER
         )
-    if "sidebar_attach_dir" not in st.session_state:
-        st.session_state.sidebar_attach_dir = _default_setting(
-            "attach_dir", "attach_dir"
+    if "llm_model" not in st.session_state:
+        st.session_state.llm_model = _default_setting(
+            "llm_model", "llm_model", config.LLM_PROVIDERS[config.DEFAULT_PROVIDER]["default_model"]
         )
+    if "attach_dir" not in st.session_state:
+        st.session_state.attach_dir = _default_setting("attach_dir", "attach_dir")
     if "remember_settings" not in st.session_state:
         st.session_state.remember_settings = bool(
             settings_store.load_prefs().get("remember")
         )
     _ensure_attach_dir_default()
+
+
+def _render_top_settings() -> dict:
+    """상단 설정 패널."""
+    st.markdown("### ⚙️ 설정")
+    row1 = st.columns([1, 1.2, 2.2])
+    with row1[0]:
+        provider = st.selectbox(
+            "AI 제공자",
+            PROVIDER_LIST,
+            key="llm_provider",
+            on_change=_on_provider_change,
+        )
+    pinfo = config.LLM_PROVIDERS[provider]
+    models = pinfo["models"]
+    if st.session_state.llm_model not in models:
+        st.session_state.llm_model = pinfo["default_model"]
+    try:
+        model_idx = models.index(st.session_state.llm_model)
+    except ValueError:
+        model_idx = 0
+        st.session_state.llm_model = models[0]
+    with row1[1]:
+        model = st.selectbox(
+            "모델",
+            models,
+            index=model_idx,
+            key="llm_model",
+        )
+    with row1[2]:
+        api_key = st.text_input(
+            "API Key",
+            type="password",
+            key="api_key",
+            help=f"키 발급: {pinfo['key_url']}",
+        )
+
+    row2 = st.columns([2.5, 1, 1])
+    with row2[0]:
+        attach_dir = st.text_input(
+            "첨부파일 폴더 (절대 경로)",
+            key="attach_dir",
+            placeholder=r"C:\...\CoolMessenger Files\Received Files",
+        )
+    with row2[1]:
+        remember = st.checkbox(
+            "설정 기억하기",
+            key="remember_settings",
+            help="API 키·모델·첨부 경로를 이 PC에 저장",
+        )
+    with row2[2]:
+        attach_path, _ = _resolve_attach_dir()
+        if attach_path:
+            st.success("첨부 폴더 OK")
+        elif _normalize_dir_path(attach_dir):
+            st.warning("경로 확인")
+
+    if remember:
+        settings_store.save_prefs(
+            True,
+            st.session_state.api_key,
+            st.session_state.llm_provider,
+            st.session_state.llm_model,
+            st.session_state.attach_dir,
+        )
+    else:
+        settings_store.save_prefs(False)
+
+    st.divider()
+    return {
+        "api_key": api_key,
+        "provider": provider,
+        "model": model,
+        "attach_dir": attach_dir,
+        "remember_settings": remember,
+    }
 
 
 def _records_to_dataframe(messages: list[ProcessedMessage]) -> pd.DataFrame:
@@ -173,11 +257,14 @@ def _load_uploaded_files(received_file, sent_file) -> pd.DataFrame:
 
 
 def _run_analysis(
-    api_key: str, model: str, df: pd.DataFrame
+    api_key: str,
+    provider: str,
+    model: str,
+    df: pd.DataFrame,
 ) -> list[ProcessedMessage]:
     records = data_processor.dataframe_to_records(df)
-    classifier = GeminiClassifier(api_key=api_key, model=model)
-    progress = st.progress(0, text="Gemini로 메시지 분류 중...")
+    classifier = MessageClassifier(api_key=api_key, provider=provider, model=model)
+    progress = st.progress(0, text=f"{provider} · {model} 분류 중...")
     total = len(records)
 
     def on_progress(done: int, tot: int) -> None:
@@ -203,11 +290,7 @@ def _apply_filters(
 ) -> pd.DataFrame:
     if use_date_filter:
         return data_processor.filter_messages(
-            df,
-            date_from,
-            date_to,
-            categories or None,
-            strict_dates=True,
+            df, date_from, date_to, categories or None, strict_dates=True
         )
     return data_processor.filter_messages(
         df, None, None, categories or None, strict_dates=True
@@ -215,9 +298,7 @@ def _apply_filters(
 
 
 def _apply_view_filters(
-    df: pd.DataFrame,
-    search_q: str,
-    duplicates_only: bool,
+    df: pd.DataFrame, search_q: str, duplicates_only: bool
 ) -> pd.DataFrame:
     out = duplicate_finder.search_messages(df, search_q)
     if duplicates_only and "dup_group" in out.columns:
@@ -238,12 +319,14 @@ def _render_metrics(df: pd.DataFrame) -> None:
         df["첨부파일"].astype(str).str.strip().replace("nan", "").astype(bool).sum()
     )
     routed_ok = int((df["attach_status"] == "성공").sum())
+    etc_count = int((df["category_label"] == "[기타]").sum()) if "category_label" in df.columns else 0
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("전체", f"{total:,}")
     c2.metric("오늘", f"{today_count:,}")
-    c3.metric("첨부", f"{with_attach:,}")
-    c4.metric("정리완료", f"{routed_ok:,}")
+    c3.metric("기타", f"{etc_count:,}")
+    c4.metric("첨부", f"{with_attach:,}")
+    c5.metric("정리완료", f"{routed_ok:,}")
 
 
 def _render_search_and_filters(df: pd.DataFrame) -> pd.DataFrame:
@@ -280,8 +363,7 @@ def _render_duplicate_groups(df: pd.DataFrame) -> None:
                 )
                 if c in cl["df"].columns
             ]
-            sub = cl["df"][cols]
-            st.dataframe(sub, use_container_width=True, hide_index=True)
+            st.dataframe(cl["df"][cols], use_container_width=True, hide_index=True)
 
 
 def _render_category_tabs(df: pd.DataFrame) -> None:
@@ -317,7 +399,9 @@ def _render_category_tabs(df: pd.DataFrame) -> None:
                 ui_styles.render_empty_state("해당 메시지 없음")
                 continue
             cols = [c for c in display_cols if c in sub.columns]
-            display = sub[cols].rename(columns={k: rename_map[k] for k in cols if k in rename_map})
+            display = sub[cols].rename(
+                columns={k: rename_map[k] for k in cols if k in rename_map}
+            )
             st.dataframe(display, use_container_width=True, hide_index=True)
 
 
@@ -326,56 +410,20 @@ def main() -> None:
     config.ensure_category_dirs()
 
     ui_styles.render_hero()
+    settings = _render_top_settings()
+    api_key = settings["api_key"]
+    provider = settings["provider"]
+    model = settings["model"]
 
     with st.sidebar:
-        st.markdown("### ⚙️ 설정")
-        ui_styles.sidebar_section("API · 경로")
-        remember_settings = st.checkbox(
-            "API 키 및 경로 기억하기",
-            key="remember_settings",
-            help="이 PC에 API 키·모델·첨부폴더 경로를 저장합니다 (.user_prefs.json)",
-        )
-        api_key = st.text_input(
-            "Gemini API Key",
-            type="password",
-            key="sidebar_api_key",
-        )
-        model = st.text_input("모델", key="sidebar_model")
-        attach_dir = st.text_input(
-            "첨부파일 폴더 (절대 경로)",
-            key="sidebar_attach_dir",
-            placeholder=r"C:\Users\...\CoolMessenger Files\Received Files",
-        )
-        attach_path, _ = _resolve_attach_dir()
-        if remember_settings:
-            settings_store.save_prefs(
-                True,
-                st.session_state.sidebar_api_key,
-                st.session_state.sidebar_model,
-                st.session_state.sidebar_attach_dir,
-            )
-        else:
-            settings_store.save_prefs(False)
-
-        if attach_path:
-            st.success(f"첨부 폴더 연결됨", icon="✅")
-            st.caption(f"`{attach_path}`")
-        elif _normalize_dir_path(attach_dir):
-            st.warning("폴더가 없거나 경로가 틀렸습니다.", icon="⚠️")
-        else:
-            st.info("사이드바에 쿨메신저 첨부 다운로드 폴더를 입력하세요.", icon="ℹ️")
-
-        st.divider()
-        ui_styles.sidebar_section("데이터")
+        st.markdown("### 📁 데이터 · 실행")
         received_file = st.file_uploader("받은메시지 (CSV / Excel)", type=UPLOAD_TYPES)
         sent_file = st.file_uploader("보낸메시지 (CSV / Excel)", type=UPLOAD_TYPES)
 
         st.divider()
-        ui_styles.sidebar_section("필터")
         use_date_filter = st.checkbox(
             "날짜 필터 (분석 대상 제한)",
             value=False,
-            help="체크 시 선택한 날짜·기간의 메시지만 AI 분류합니다.",
         )
         date_from_val = date_to_val = None
         if use_date_filter:
@@ -384,12 +432,9 @@ def main() -> None:
                 date_from_val = st.date_input("시작일", value=datetime.now().date())
             with dc2:
                 date_to_val = st.date_input("종료일", value=datetime.now().date())
-            if date_from_val == date_to_val:
-                st.caption(f"📅 {date_from_val} 하루만 분석")
-            else:
-                st.caption(f"📅 {date_from_val} ~ {date_to_val} 분석")
+
         selected_categories = st.multiselect(
-            "카테고리",
+            "결과 카테고리 표시",
             options=CATEGORY_OPTIONS,
             default=CATEGORY_OPTIONS,
         )
@@ -404,7 +449,7 @@ def main() -> None:
 
     if analyze_btn:
         if not api_key:
-            st.error("Gemini API Key를 입력해 주세요.")
+            st.error("API Key를 입력해 주세요.")
         elif received_file is None and sent_file is None:
             st.error("파일을 업로드해 주세요.")
         else:
@@ -417,40 +462,32 @@ def main() -> None:
                 else:
                     if use_date_filter and date_from_val and date_to_val:
                         raw_df = data_processor.filter_by_date_range(
-                            raw_df,
-                            date_from_val,
-                            date_to_val,
-                            strict=True,
+                            raw_df, date_from_val, date_to_val, strict=True
                         )
                         if raw_df.empty:
                             st.warning(
-                                f"선택한 기간({date_from_val} ~ {date_to_val})에 "
-                                f"해당하는 메시지가 없습니다. (파일 전체 {total_loaded}건)"
+                                f"선택 기간({date_from_val}~{date_to_val})에 메시지 없음 "
+                                f"(전체 {total_loaded}건)"
                             )
                             return
                         st.info(
-                            f"날짜 필터 적용: **{len(raw_df)}건** 분석 "
-                            f"(업로드 전체 {total_loaded}건 중)"
+                            f"날짜 필터: **{len(raw_df)}건** 분석 (전체 {total_loaded}건)"
                         )
-                    processed = _run_analysis(api_key, model, raw_df)
+                    processed = _run_analysis(api_key, provider, model, raw_df)
                     st.session_state.processed_messages = processed
                     st.session_state.messages_df = message_enricher.enrich_dataframe(
                         _records_to_dataframe(processed)
                     )
                     st.session_state.analysis_done = True
                     st.session_state.files_routed = False
-                    st.session_state.analysis_used_date_filter = use_date_filter
-                    st.session_state.analysis_date_from = date_from_val
-                    st.session_state.analysis_date_to = date_to_val
                     dist = (
                         st.session_state.messages_df["category_label"]
                         .value_counts()
                         .to_dict()
                     )
-                    st.toast(f"{len(processed)}건 분석 완료", icon="✅")
+                    st.toast(f"{len(processed)}건 분석 ({provider})", icon="✅")
                     st.caption(
-                        "카테고리 분포: "
-                        + " · ".join(f"{k} {v}" for k, v in dist.items())
+                        "분포: " + " · ".join(f"{k} {v}" for k, v in dist.items())
                     )
             except Exception as e:
                 st.exception(e)
@@ -496,15 +533,9 @@ def main() -> None:
     if route_btn:
         attach_path, tried_paths = _resolve_attach_dir()
         if attach_path is None:
-            st.error(
-                "유효한 첨부파일 폴더를 찾지 못했습니다. "
-                "사이드바 **첨부파일 폴더**에 쿨메신저 `Received Files` 경로를 입력해 주세요."
-            )
+            st.error("유효한 첨부파일 폴더 경로를 입력해 주세요.")
             if tried_paths:
-                st.caption("확인한 경로: " + " | ".join(f"`{p}`" for p in tried_paths))
-            test_attach = _ROOT / "test_data" / "attachments"
-            if test_attach.is_dir():
-                st.info(f"테스트용 폴더: `{test_attach}`")
+                st.caption("확인: " + " | ".join(f"`{p}`" for p in tried_paths))
         else:
             try:
                 messages = st.session_state.processed_messages
@@ -514,9 +545,6 @@ def main() -> None:
                     for i in view_df["idx"].tolist()
                     if i in idx_map
                 ]
-                with_attach = sum(1 for pm in subset if pm.record.has_attachment)
-                if with_attach == 0:
-                    st.warning("첨부파일이 있는 메시지가 없습니다.")
                 success, attempts = file_manager.route_all_attachments(
                     subset, str(attach_path)
                 )

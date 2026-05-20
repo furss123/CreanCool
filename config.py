@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# --- Categories (display label = folder name under output/) ---
+# --- Categories ---
 
 CATEGORIES: list[dict[str, str]] = [
     {
@@ -42,7 +42,7 @@ CATEGORIES: list[dict[str, str]] = [
         "id": "etc",
         "label": "[기타]",
         "folder": "기타",
-        "description": "친목·인사·감사 등 업무 지시가 없는 사적·단순 메시지 (최후 선택)",
+        "description": "친목·인사·감사 등 업무 지시가 없는 사적인 메시지 (최후 선택)",
     },
 ]
 
@@ -50,8 +50,40 @@ CATEGORY_LABELS: list[str] = [c["label"] for c in CATEGORIES]
 LABEL_TO_FOLDER: dict[str, str] = {c["label"]: c["folder"] for c in CATEGORIES}
 FOLDER_TO_LABEL: dict[str, str] = {c["folder"]: c["label"] for c in CATEGORIES}
 
-# Gemini (Google AI)
-DEFAULT_GEMINI_MODEL = "gemini-1.5-pro"
+# --- LLM providers ---
+
+LLM_PROVIDERS: dict[str, dict] = {
+    "Gemini": {
+        "models": [
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+        ],
+        "default_model": "gemini-1.5-pro",
+        "key_url": "https://aistudio.google.com/apikey",
+    },
+    "GPT": {
+        "models": [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4-turbo",
+        ],
+        "default_model": "gpt-4o-mini",
+        "key_url": "https://platform.openai.com/api-keys",
+    },
+    "Claude": {
+        "models": [
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-3-haiku-20240307",
+        ],
+        "default_model": "claude-3-5-sonnet-20241022",
+        "key_url": "https://console.anthropic.com/settings/keys",
+    },
+}
+
+DEFAULT_PROVIDER = "Gemini"
+DEFAULT_GEMINI_MODEL = LLM_PROVIDERS["Gemini"]["default_model"]
 
 ENCODINGS_TO_TRY: tuple[str, ...] = ("utf-8-sig", "utf-8", "cp949", "euc-kr")
 
@@ -64,7 +96,6 @@ def is_frozen() -> bool:
 
 
 def get_base_dir() -> Path:
-    """Project / EXE directory for writable output."""
     if is_frozen():
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
